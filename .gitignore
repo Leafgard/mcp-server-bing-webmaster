@@ -141,7 +141,9 @@ cython_debug/
 Thumbs.db
 
 # Test files
-test_*.py
+# Stray scratch tests at the repo root are ignored; the tests/ suite is tracked.
+/test_*.py
+!tests/test_*.py
 validate_*.py
 VALIDATION_REPORT.md
 tests_archive/
