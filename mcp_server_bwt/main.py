@@ -7,6 +7,8 @@ enabling site management and analytics through AI assistants.
 
 import logging
 import os
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List, Optional
 
 import httpx
@@ -29,6 +31,12 @@ mcp = FastMCP(
 # API configuration
 API_BASE_URL = "https://ssl.bing.com/webmaster/api.svc/json"
 API_KEY = os.getenv("BING_WEBMASTER_API_KEY", "")
+
+# .NET date serialization, e.g. "/Date(1786830532000)/" or "/Date(1786830532000-0700)/"
+DOTNET_DATE_RE = re.compile(r"/Date\((?P<millis>-?\d+)(?P<offset>[+-]\d{4})?\)/")
+# DateTime.MinValue (0001-01-01) is the API's "never" sentinel; any timestamp at or
+# below this is that sentinel, whatever timezone offset it is rendered in.
+DOTNET_MIN_VALUE_MILLIS = -62135000000000
 
 
 class BingWebmasterAPI:
@@ -82,12 +90,41 @@ class BingWebmasterAPI:
 
             # Handle OData response format
             if "d" in data:
-                return data["d"]
-            return data
+                data = data["d"]
+            return self._normalize_dates(data)
 
         except httpx.TimeoutException:
             logger.error("Request timeout for %s", endpoint)
             raise
+
+    def _normalize_dates(self, data: Any) -> Any:
+        """Convert .NET ``/Date(...)/`` strings to ISO 8601.
+
+        The Bing API serializes timestamps as ``/Date(1786830532000)/`` or
+        ``/Date(1786830532000-0700)/``. Consumers of this server are language
+        models, which read ISO 8601 reliably and .NET epoch strings not at all.
+        ``DateTime.MinValue`` is the API's "never" sentinel and becomes ``None``
+        rather than a year-1 date that would be reported as fact.
+        """
+        if isinstance(data, dict):
+            return {k: self._normalize_dates(v) for k, v in data.items()}
+        if isinstance(data, list):
+            return [self._normalize_dates(v) for v in data]
+        if isinstance(data, str):
+            match = DOTNET_DATE_RE.fullmatch(data)
+            if match:
+                millis = int(match.group("millis"))
+                if millis <= DOTNET_MIN_VALUE_MILLIS:
+                    return None
+                offset = match.group("offset")
+                tz = timezone.utc
+                if offset:
+                    sign = 1 if offset[0] == "+" else -1
+                    tz = timezone(
+                        sign * timedelta(hours=int(offset[1:3]), minutes=int(offset[3:5]))
+                    )
+                return datetime.fromtimestamp(millis / 1000, tz).isoformat()
+        return data
 
     def _ensure_type_field(self, data: Any, type_name: str) -> Any:
         """Ensure __type field is present for MCP compatibility."""
