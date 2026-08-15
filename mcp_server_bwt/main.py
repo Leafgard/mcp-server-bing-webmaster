@@ -10,7 +10,11 @@ import os
 from typing import Annotated, Any, Dict, List, Optional
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+
+try:  # mcp < 2.0
+    from mcp.server.fastmcp import FastMCP
+except ImportError:  # mcp >= 2.0 renamed FastMCP to MCPServer
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
