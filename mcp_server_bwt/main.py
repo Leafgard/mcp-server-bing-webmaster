@@ -242,7 +242,7 @@ async def get_page_stats(site_url: Annotated[str, "The URL of the site"]) -> Lis
 )
 async def get_rank_and_traffic_stats(
     site_url: Annotated[str, "The URL of the site"],
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """
     Get overall ranking and traffic statistics.
 
@@ -250,7 +250,7 @@ async def get_rank_and_traffic_stats(
         site_url: The URL of the site
 
     Returns:
-        Overall site statistics
+        List of per-day site statistics (empty for a site with no traffic yet)
     """
     stats = await api._make_request("GetRankAndTrafficStats", params={"siteUrl": site_url})
     return api._ensure_type_field(stats, "RankAndTrafficStats")
@@ -394,41 +394,61 @@ async def remove_sitemap(
     description="Get detailed data for a specific keyword/query.",
 )
 async def get_keyword_data(
-    site_url: Annotated[str, "The URL of the site"],
     query: Annotated[str, "The keyword/query to analyze"],
+    country: Annotated[str, "Country code (e.g., 'US', 'GB')"] = "",
+    language: Annotated[str, "Language code (e.g., 'en-US', 'fr-FR')"] = "",
 ) -> Dict[str, Any]:
     """
     Get detailed data for a specific keyword/query.
 
+    This is a market-wide keyword tool, not a per-site one: the Bing endpoint
+    takes no siteUrl.
+
     Args:
-        site_url: The URL of the site
         query: The keyword/query to analyze
+        country: Country code (optional)
+        language: Language code (optional)
 
     Returns:
         Keyword performance data
     """
-    data = await api._make_request("GetKeyword", params={"siteUrl": site_url, "query": query})
+    req_params: Dict[str, Any] = {"q": query}
+    if country:
+        req_params["country"] = country
+    if language:
+        req_params["language"] = language
+
+    data = await api._make_request("GetKeyword", params=req_params)
     return api._ensure_type_field(data, "KeywordData")
 
 
 @mcp.tool(name="get_related_keywords", description="Get keywords related to a specific query.")
 async def get_related_keywords(
-    site_url: Annotated[str, "The URL of the site"],
     query: Annotated[str, "The base keyword/query"],
+    country: Annotated[str, "Country code (e.g., 'US', 'GB')"] = "",
+    language: Annotated[str, "Language code (e.g., 'en-US', 'fr-FR')"] = "",
 ) -> List[Dict[str, Any]]:
     """
     Get keywords related to a specific query.
 
+    This is a market-wide keyword tool, not a per-site one: the Bing endpoint
+    takes no siteUrl.
+
     Args:
-        site_url: The URL of the site
         query: The base keyword/query
+        country: Country code (optional)
+        language: Language code (optional)
 
     Returns:
         List of related keywords
     """
-    keywords = await api._make_request(
-        "GetRelatedKeywords", params={"siteUrl": site_url, "query": query}
-    )
+    req_params: Dict[str, Any] = {"q": query}
+    if country:
+        req_params["country"] = country
+    if language:
+        req_params["language"] = language
+
+    keywords = await api._make_request("GetRelatedKeywords", params=req_params)
     return api._ensure_type_field(keywords, "RelatedKeyword")
 
 
@@ -654,24 +674,25 @@ async def submit_content(
     description="Get historical statistics for a specific keyword.",
 )
 async def get_keyword_stats(
-    site_url: Annotated[str, "The URL of the site"],
     query: Annotated[str, "The keyword/query to analyze"],
     country: Annotated[str, "Country code (e.g., 'US', 'GB')"] = "",
-    language: Annotated[str, "Language code (e.g., 'en', 'fr')"] = "",
-) -> Dict[str, Any]:
+    language: Annotated[str, "Language code (e.g., 'en-US', 'fr-FR')"] = "",
+) -> List[Dict[str, Any]]:
     """
     Get historical statistics for a specific keyword.
 
+    This is a market-wide keyword tool, not a per-site one: the Bing endpoint
+    takes no siteUrl.
+
     Args:
-        site_url: The URL of the site
         query: The keyword/query to analyze
         country: Country code (optional)
         language: Language code (optional)
 
     Returns:
-        Historical keyword statistics
+        List of historical impression counts for the keyword
     """
-    req_params: Dict[str, Any] = {"siteUrl": site_url, "query": query}
+    req_params: Dict[str, Any] = {"q": query}
     if country:
         req_params["country"] = country
     if language:
