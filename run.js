@@ -7,7 +7,7 @@
  * or a virtual environment if available.
  */
 
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -23,6 +23,24 @@ if (fs.existsSync(venvPython)) {
 } else {
   // In production, we'll need Python installed
   pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+}
+
+// Preflight: a missing dependency otherwise kills the process before the MCP
+// handshake, and the client reports only "connection closed" with no cause.
+const preflight = spawnSync(pythonCommand, ['-c', 'import httpx, mcp'], {
+  cwd: projectRoot,
+  stdio: 'ignore',
+});
+if (preflight.status !== 0) {
+  console.error('Python dependencies are missing, so the MCP server cannot start.');
+  console.error('');
+  console.error('Install them with:');
+  console.error(`  cd "${projectRoot}"`);
+  console.error('  npm rebuild @isiahw1/mcp-server-bing-webmaster');
+  console.error('');
+  console.error('Or run the server through uv, which handles them for you:');
+  console.error('  uvx --from git+https://github.com/isiahw1/mcp-server-bing-webmaster mcp-server-bing-webmaster');
+  process.exit(1);
 }
 
 // Run the MCP server
